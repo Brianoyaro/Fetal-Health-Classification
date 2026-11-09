@@ -1,86 +1,97 @@
-# Fetal Health Classification & Clinical Diagnostics Pipeline
+# Fetal Health Classification
 
-## 1. Project Overview
-This project leverages machine learning to classify fetal health status into three clinical categories using cardiotocogram (CTG) metrics:
-1. **Normal (1.0)**: Healthy, reassuring fetal state.
-2. **Suspect (2.0)**: Warning signs present; requires close monitoring.
-3. **Pathological (3.0)**: High risk of fetal distress; requires immediate clinical action.
+## Problem and intended use
 
-Our objective is to train, tune, and evaluate several classifiers (Logistic Regression, Decision Trees, Random Forests, and XGBoost) while optimizing for clinical safety by minimizing **False Reassurances** (misclassifying at-risk fetuses as normal).
+Preventable maternal and child deaths remain a global health concern. Cardiotocography (CTG) is a relatively accessible way to monitor fetal heart rate, fetal movement, uterine contractions, and related signals. Interpreting those measurements can help healthcare professionals identify cases that may need further attention.
 
----
+This project uses machine-learning classification to demonstrate how CTG measurements can be used to predict one of three fetal-health labels: **Normal**, **Suspect**, or **Pathological**. The trained model is exposed through a FastAPI service: callers provide seven CTG features and receive a predicted class and class probabilities.
 
-## 2. Model Performance Summary
+This repository is an educational and experimental prototype, not a medical device or a substitute for clinical judgment. Its predictions must not be used by themselves to make clinical decisions.
 
-Based on out-of-sample evaluation on our test dataset ($426$ cases: $332$ Normal, $59$ Suspect, $35$ Pathological), the trained and optimized models performed as follows:
+## Dataset
 
-| Model | Test Accuracy | Macro Precision | Macro Recall | Macro F1-Score | Macro ROC-AUC |
-| :--- | :---: | :---: | :---: | :---: | :---: |
-| **XGBoost** | **90.61%** | 81.89% | **81.81%** | 81.80% | **0.9660** |
-| **Random Forest** | 90.38% | **84.33%** | 81.25% | **82.51%** | 0.9516 |
-| **Decision Tree** | 86.38% | 76.54% | 71.80% | 73.35% | 0.9301 |
-| **Logistic Regression** | 85.92% | 81.48% | 60.60% | 66.90% | 0.9354 |
+The dataset contains **2,126 records** of features extracted from CTG exams. According to the dataset description, three expert obstetricians classified the records into Normal, Suspect, and Pathological classes.
 
-* **XGBoost** achieves the highest overall accuracy ($90.61\%$) and discrimination power with an outstanding Area Under the ROC Curve of **$0.9660$**.
-* **Random Forest** achieves the highest macro F1-Score ($82.51\%$) and overall macro precision.
+Source: [Fetal Health Classification dataset on Kaggle](https://www.kaggle.com/datasets/andrewmvd/fetal-health-classification/data).
 
----
+Download the dataset and place the CSV at `data/fetal_health.csv`. The training script expects that exact path when run from the repository root.
 
-## 3. Clinical Error Analysis
-In fetal monitoring, predictions are not just mathematical scores—they represent lives. We analyze two critical types of diagnostic errors:
+## Setup with `uv`
 
-### **A. False Reassurance (The High-Risk Miss) ⚠️**
-* **Definition**: Predicting a fetus is **Normal** when it is actually **Suspect** or **Pathological**.
-* **XGBoost**: **15 missed cases** (Lowest Risk)
-* **Random Forest**: 18 missed cases
-* **Decision Tree**: 27 missed cases
-* **Logistic Regression**: **50 missed cases** (Highest Risk)
+The project uses [`uv`](https://docs.astral.sh/uv/) to manage its Python environment and locked dependencies. Install `uv`, then from the repository root run:
 
-### **B. False Alarm (The Over-Diagnosis) 🔔**
-* **Definition**: Predicting a fetus is **Suspect** or **Pathological** when it is actually **Normal**.
-* **XGBoost**: 17 alarms
-* **Random Forest**: 17 alarms
-* **Decision Tree**: 24 alarms
-* **Logistic Regression**: **4 alarms**
-
-> **Clinical Verdict**: While Logistic Regression has almost no false alarms, it is clinically dangerous because it falsely reassures parents in 50 cases. **XGBoost** is the safest model for clinical triage, successfully detecting over **84%** of abnormal cases with minimal dangerous misses.
-
----
-
-## 4. How to Run the Pipeline & API
-
-### **Prerequisites**
-Make sure you have the required dependencies installed:
 ```bash
-pip install pandas numpy scikit-learn xgboost joblib fastapi uvicorn pydantic
+uv sync
 ```
 
-### **A. Training & Serializing the Model**
-Run the Jupyter notebook cells sequentially to clean the data, execute Stratified 5-Fold Grid Searches, and save the final pipeline:
-```python
-# Serializes the entire pipeline (including vectorizer, scaler, and model)
-joblib.dump({"model": final_xgb}, "../models/xgboost_pipeline.joblib")
+This creates or updates the project virtual environment using `pyproject.toml` and `uv.lock`. Run project commands with `uv run` so they use that environment.
+
+## Train and save the model
+
+From the repository root, run:
+
+```bash
+uv run python scripts/train.py
 ```
 
-### **B. Starting the FastAPI Production Server**
-A FastAPI application is configured to expose this pipeline. To start the API server, navigate to your app directory and execute:
-```bash
-uvicorn app:app --host 0.0.0.0 --port 8000 --reload
+The script loads `data/fetal_health.csv`, evaluates the XGBoost pipeline using stratified five-fold cross-validation (reporting one-vs-rest ROC AUC), then fits the pipeline on the full dataset. It saves the serialized model to:
+
+```text
+models/xgboost_pipeline.joblib
 ```
 
-### **C. Making a Sample Prediction Request**
-Send a POST request to `/predict` with the 7 critical cardiotocography features:
+The saved model is required to run the API or build the Docker image.
+
+## Run the API locally
+
+Start the FastAPI server from the repository root:
+
 ```bash
-curl -X 'POST' \
-  'http://localhost:8000/predict' \
+uv run uvicorn app:app --host 0.0.0.0 --port 9696
+```
+
+The API provides:
+
+- `GET /health` — reports whether the model loaded.
+- `POST /predict` — accepts CTG measurements and returns a predicted class and probabilities.
+
+Interactive API documentation is available at [http://localhost:9696/docs](http://localhost:9696/docs).
+
+## Make a prediction with `predict.py`
+
+With the API running, open a second terminal at the repository root and run:
+
+```bash
+uv run python scripts/predict.py
+```
+
+This sends the example measurements in `scripts/predict.py` to `http://localhost:9696/predict` and prints the JSON response.
+
+You can also call the endpoint directly:
+
+```bash
+curl -X POST http://localhost:9696/predict \
   -H 'Content-Type: application/json' \
   -d '{
-  "prolongued_decelerations": 0.002,
-  "accelerations": 0.000,
-  "uterine_contractions": 0.007,
-  "light_decelerations": 0.006,
-  "fetal_movement": 0.001,
-  "severe_decelerations": 0.000,
-  "baseline_value": 129.0
-}'
+    "prolongued_decelerations": 0.002,
+    "accelerations": 0.000,
+    "uterine_contractions": 0.007,
+    "light_decelerations": 0.006,
+    "fetal_movement": 0.001,
+    "severe_decelerations": 0.000,
+    "baseline_value": 129.0
+  }'
 ```
+
+The endpoint responds with `fetal_health_class` (`1`: Normal, `2`: Suspect, `3`: Pathological) and probabilities for each class.
+
+## Run with Docker
+
+First train the model as described above so `models/xgboost_pipeline.joblib` exists. From the repository root, build and run the image:
+
+```bash
+docker build -t fetal-health-classification .
+docker run --rm -p 9696:9696 fetal-health-classification
+```
+
+The container serves the same API on port `9696`. Once it is running, visit [http://localhost:9696/docs](http://localhost:9696/docs) or use `scripts/predict.py` from the host in another terminal.
