@@ -95,3 +95,16 @@ docker run --rm -p 9696:9696 fetal-health-classification
 ```
 
 The container serves the same API on port `9696`. Once it is running, visit [http://localhost:9696/docs](http://localhost:9696/docs) or use `scripts/predict.py` from the host in another terminal.
+
+
+## Proof of concept
+
+These screenshots demonstrate the model API working end-to-end in both local and containerized setups.
+
+![API health endpoint](images/api-health-img.png)
+
+![FastAPI interactive docs](images/api-docs-img.png)
+
+![Terminal prediction output](images/terminal-img.png)
+
+![Dockerized deployment](images/docker-img.png)
