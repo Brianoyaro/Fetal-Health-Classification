@@ -12,7 +12,7 @@ app = FastAPI(
 )
 
 # Define the file path to our serialized pipeline
-MODEL_PATH = "../models/xgboost_pipeline.joblib"
+MODEL_PATH = "models/xgboost_pipeline.joblib"
 
 # Global variable for model pipeline
 model_pipeline = None
