@@ -3,7 +3,7 @@ import requests
 import json
 
 # API endpoint
-url = "http://localhost:8000/predict"
+url = "http://localhost:9696/predict"
 
 # Input data
 data = {

@@ -8,8 +8,14 @@ ENV PATH="/code/.venv/bin:$PATH"
 COPY "pyproject.toml" "uv.lock" ".python-version" ./
 RUN uv sync --locked
 
-COPY "app.py" "models/xgboost_pipeline.joblib" ./
+COPY app.py ./
+COPY models/xgboost_pipeline.joblib models/xgboost_pipeline.joblib
+
 
 EXPOSE 9696
 
 ENTRYPOINT ["uvicorn", "app:app", "--host", "0.0.0.0", "--port", "9696"]
+
+
+# docker build -t fetal-health-classification .
+# docker run -it --rm -p 9696:9696 fetal-health-classification
